@@ -1,0 +1,1 @@
+Lets you filter out rarer NPCs and tiles from your lifeform analyzer/metal detector to search for more common ones
