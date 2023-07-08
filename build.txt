@@ -1,3 +1,4 @@
 displayName = Info Item Filtering
 author = Tyfyter2002
 version = 1.0
+side = Client

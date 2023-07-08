@@ -29,8 +29,8 @@ namespace RareInfoFilter {
 		public static AutoCastingAsset<Texture2D> SelectorEndTexture { get; private set; }
 		public static AutoCastingAsset<Texture2D> SelectorMidTexture { get; private set; }
 		public override void Load() {
-			IL.Terraria.Main.DrawInfoAccs += Main_DrawInfoAccs;
-			On.Terraria.SceneMetrics.IsValidForOreFinder += SceneMetrics_IsValidForOreFinder;
+			Terraria.IL_Main.DrawInfoAccs += Main_DrawInfoAccs;
+			Terraria.On_SceneMetrics.IsValidForOreFinder += SceneMetrics_IsValidForOreFinder;
 			if (Main.netMode != NetmodeID.Server) {
 				SelectorEndTexture = Assets.Request<Texture2D>("Textures/UI/Selector_Back_End");
 				SelectorMidTexture = Assets.Request<Texture2D>("Textures/UI/Selector_Back_Mid");
@@ -39,7 +39,7 @@ namespace RareInfoFilter {
 			OpenTileMenuHotkey = KeybindLoader.RegisterKeybind(this, "Open Tile Filter Menu", "NumPad8");
 		}
 		public override void Unload() {
-			IL.Terraria.Main.DrawInfoAccs -= Main_DrawInfoAccs;
+			Terraria.IL_Main.DrawInfoAccs -= Main_DrawInfoAccs;
 
 			SelectorEndTexture = null;
 			SelectorMidTexture = null;
@@ -87,7 +87,7 @@ namespace RareInfoFilter {
 				ModContent.GetInstance<RareInfoFilter>().Logger.Error("Couldn't find the npc thingy");
 			}
 		}
-		private bool SceneMetrics_IsValidForOreFinder(On.Terraria.SceneMetrics.orig_IsValidForOreFinder orig, Tile t) {
+		private static bool SceneMetrics_IsValidForOreFinder(Terraria.On_SceneMetrics.orig_IsValidForOreFinder orig, Tile t) {
 			if (orig(t)) {
 				SeeTile(t);
 				return !FilterTile(t);
