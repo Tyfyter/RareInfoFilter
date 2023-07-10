@@ -11,6 +11,7 @@ using System.Linq;
 using System.Reflection;
 using Terraria;
 using Terraria.Audio;
+using Terraria.GameContent.UI.Elements;
 using Terraria.GameInput;
 using Terraria.ID;
 using Terraria.Localization;
@@ -18,6 +19,7 @@ using Terraria.Map;
 using Terraria.ModLoader;
 using Terraria.ModLoader.Config;
 using Terraria.ModLoader.Config.UI;
+using Terraria.ModLoader.Core;
 using Terraria.ModLoader.IO;
 using Terraria.UI;
 
@@ -37,6 +39,18 @@ namespace RareInfoFilter {
 			}
 			OpenNPCMenuHotkey = KeybindLoader.RegisterKeybind(this, "Open NPC Filter Menu", "NumPad7");
 			OpenTileMenuHotkey = KeybindLoader.RegisterKeybind(this, "Open Tile Filter Menu", "NumPad8");
+			MonoModHooks.Add(
+				typeof(ConfigManager).GetMethod("GetDefaultLocalizationKey", BindingFlags.NonPublic | BindingFlags.Static),
+				(h_GetDefaultLocalizationKey)GetDefaultLocalizationKey
+			);
+		}
+		private delegate string o_GetDefaultLocalizationKey(MemberInfo member, string dataName);
+		private delegate string h_GetDefaultLocalizationKey(o_GetDefaultLocalizationKey orig, MemberInfo member, string dataName);
+		private static string GetDefaultLocalizationKey(o_GetDefaultLocalizationKey orig, MemberInfo member, string dataName) {
+			string modName;
+			string groupKey = (AssemblyManager.GetAssemblyOwner(((member is Type t) ? t : member.DeclaringType).Assembly, out modName) ? ("Mods." + modName + ".Configs") : "Config");
+			string memberKey = ((member is Type) ? member.Name : (member.DeclaringType.Name + "." + member.Name));
+			return $"{groupKey}.{memberKey}.{dataName}";
 		}
 		public override void Unload() {
 			Terraria.IL_Main.DrawInfoAccs -= Main_DrawInfoAccs;
@@ -114,6 +128,7 @@ namespace RareInfoFilter {
 		public float totalHeight;
 		FilterMenuList listWrapper;
 		FilterMenuList listWrapper2;
+		UIScrollbar scrollbar;
 		bool isNPC = true;
 		public FilterMenu(bool isNPC = true) {
 			this.isNPC = isNPC;
@@ -140,7 +155,7 @@ namespace RareInfoFilter {
 					.seenNPCTypes
 					.OrderByDescending(v => ContentSamples.NpcsByNetId[v].rarity)
 					.Select(v => new PropertyFieldWrapper(
-						new HashSetPropertyInfo<int>($"{Lang.GetNPCNameValue(v)} ({ContentSamples.NpcsByNetId[v].rarity})", filterPlayer.hiddenNPCTypes, v)
+						new HashSetPropertyInfo<int>($"{Lang.GetNPCNameValue(v)} ({ContentSamples.NpcsByNetId[v].rarity})", filterPlayer.hiddenNPCTypes, v, typeof(FilterMenu))
 					))
 				.ToArray();
 			} else {
@@ -148,7 +163,7 @@ namespace RareInfoFilter {
 					.seenTileTypes
 					.OrderByDescending(v => Main.tileOreFinderPriority[v])
 					.Select(v => new PropertyFieldWrapper(
-						new HashSetPropertyInfo<int>($"{Lang.GetMapObjectName(MapHelper.TileToLookup(v, 0))} ({Main.tileOreFinderPriority[v]})", filterPlayer.hiddenTileTypes, v)
+						new HashSetPropertyInfo<int>($"{Lang.GetMapObjectName(MapHelper.TileToLookup(v, 0))} ({Main.tileOreFinderPriority[v]})", filterPlayer.hiddenTileTypes, v, typeof(FilterMenu))
 					))
 				.ToArray();
 			}
@@ -167,11 +182,24 @@ namespace RareInfoFilter {
 			listWrapper.Height.Set(Height.Pixels, 0);
 			listWrapper2.Append(listWrapper);
 
-			listWrapper2.Height.Set(-(52 + 16), 1);
+			listWrapper2.Height.Set(-16, 1);
 			listWrapper2.OverflowHidden = true;
 			listWrapper2.Left.Pixels = -12;
 			listWrapper2.Top.Pixels += 8;
 			Append(listWrapper2);
+
+			if (listWrapper.Height.Pixels > Main.screenHeight - 16) {
+				foreach (var item in listWrapper.Children) {
+					item.Width.Pixels -= 10;
+				}
+				Width.Pixels += 10 * scale.X;
+				scrollbar = new();
+				scrollbar.Top.Set(8, 0);
+				scrollbar.Height.Set(-16, 1);
+				scrollbar.Left.Set(-20, 1);
+				scrollbar.SetView(Main.screenHeight - 16, listWrapper.Height.Pixels);
+				Append(scrollbar);
+			}
 
 			//Append(listWrapper2);
 			Height.Set(0, 1);
@@ -179,9 +207,17 @@ namespace RareInfoFilter {
 			//Left.Set(Width.Pixels * 0.1f, 1f);
 			//Top.Set(Height.Pixels * -0.5f, 0.5f);
 		}
+		public override void Update(GameTime gameTime) {
+			if (scrollbar is not null) {
+				float oldTop = listWrapper.Top.Pixels;
+				listWrapper.Top.Pixels = -scrollbar.ViewPosition;
+				if (listWrapper.Top.Pixels != oldTop) this.Recalculate();
+			}
+		}
 		public override void ScrollWheel(UIScrollWheelEvent evt) {
-			listWrapper.Top.Pixels = MathHelper.Clamp(listWrapper.Top.Pixels + evt.ScrollWheelValue, (Main.screenHeight - (52 + 16)) - listWrapper.Height.Pixels, 0);
-			this.Recalculate();
+			if (scrollbar is not null) {
+				scrollbar.ViewPosition -= evt.ScrollWheelValue;
+			}
 		}
 		public override void Draw(SpriteBatch spriteBatch) {
 			base.Draw(spriteBatch);
@@ -295,10 +331,11 @@ namespace RareInfoFilter {
 		readonly T value;
 		readonly string name;
 		public override string Name => name;
-		internal HashSetPropertyInfo(string name, HashSet<T> set, T value) : base() {
+		internal HashSetPropertyInfo(string name, HashSet<T> set, T value, Type declaringType = null) : base() {
 			this.name = name ?? "";
 			this.set = set;
 			this.value = value;
+			this.declaringType = declaringType;
 		}
 		public bool Get() => set.Contains(value);
 		public void Set(bool value) {
@@ -318,7 +355,8 @@ namespace RareInfoFilter {
 		public override bool CanRead => true;
 		public override bool CanWrite => true;
 		public override Type PropertyType => typeof(bool);
-		public override Type DeclaringType { get; }
+		public Type declaringType;
+		public override Type DeclaringType => declaringType;
 		public override Type ReflectedType { get; }
 
 		public override MethodInfo[] GetAccessors(bool nonPublic) {
