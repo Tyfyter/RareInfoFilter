@@ -47,13 +47,16 @@ namespace RareInfoFilter {
 		private delegate string o_GetDefaultLocalizationKey(MemberInfo member, string dataName);
 		private delegate string h_GetDefaultLocalizationKey(o_GetDefaultLocalizationKey orig, MemberInfo member, string dataName);
 		private static string GetDefaultLocalizationKey(o_GetDefaultLocalizationKey orig, MemberInfo member, string dataName) {
-			string modName;
-			string groupKey = (AssemblyManager.GetAssemblyOwner(((member is Type t) ? t : member.DeclaringType).Assembly, out modName) ? ("Mods." + modName + ".Configs") : "Config");
-			string memberKey = ((member is Type) ? member.Name : (member.DeclaringType.Name + "." + member.Name));
-			return $"{groupKey}.{memberKey}.{dataName}";
+			if (member.DeclaringType == typeof(FilterMenu)) {
+				string groupKey = (AssemblyManager.GetAssemblyOwner(((member is Type t) ? t : member.DeclaringType).Assembly, out string modName) ? ("Mods." + modName + ".Configs") : "Config");
+				string memberKey = ((member is Type) ? member.Name : (member.DeclaringType.Name + "." + member.Name));
+				return $"{groupKey}.{memberKey}.{dataName}";
+			} else {
+				return orig(member, dataName);
+			}
 		}
 		public override void Unload() {
-			Terraria.IL_Main.DrawInfoAccs -= Main_DrawInfoAccs;
+			IL_Main.DrawInfoAccs -= Main_DrawInfoAccs;
 
 			SelectorEndTexture = null;
 			SelectorMidTexture = null;
@@ -61,7 +64,10 @@ namespace RareInfoFilter {
 			OpenTileMenuHotkey = null;
 		}
 		public static void SeeNPC(NPC npc) {
-			if (!FilterPlayer.seenNPCTypes.Contains(npc.type)) FilterPlayer.seenNPCTypes.Add(npc.type);
+			const int range = 1300;
+			if (npc.active && npc.rarity > 0 && (npc.Center - Main.LocalPlayer.Center).LengthSquared() < range * range) {
+				if (!FilterPlayer.seenNPCTypes.Contains(npc.type)) FilterPlayer.seenNPCTypes.Add(npc.type);
+			}
 		}
 		public static bool FilterNPC(NPC npc) {
 			return FilterPlayer?.hiddenNPCTypes?.Contains(npc.type) ?? false;
@@ -92,7 +98,13 @@ namespace RareInfoFilter {
 				c.EmitDelegate<Func<NPC, bool>>(FilterNPC);
 				c.Emit(OpCodes.Brtrue, label);
 
-				c.GotoNext(MoveType.Before, op => op.MatchLdloc(i));
+				c.GotoPrev(
+					MoveType.AfterLabel, 
+					op => op.MatchLdsfld(npc),
+					op => op.MatchLdloc(out i),
+					op => op.MatchLdelemRef(),
+					op => op.MatchLdfld<Entity>("active")
+				);
 				c.Emit(OpCodes.Ldsfld, npc);
 				c.Emit(OpCodes.Ldloc, i);
 				c.Emit(OpCodes.Ldelem_Ref);
