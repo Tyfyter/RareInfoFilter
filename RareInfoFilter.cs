@@ -135,6 +135,10 @@ namespace RareInfoFilter {
 		public override void OnInitialize() {
 			Width.Set(0, 1);
 		}
+		public override bool ContainsPoint(Vector2 point) {
+			Rectangle rect = GetOuterDimensions().ToRectangle();
+			return point.X < rect.X + rect.Width;
+		}
 	}
 	public class FilterMenu : UIElement {
 		public float totalHeight;
@@ -147,6 +151,10 @@ namespace RareInfoFilter {
 		}
 		public override void OnActivate() {
 			SoundEngine.PlaySound(SoundID.MenuOpen);
+		}
+		public override bool ContainsPoint(Vector2 point) {
+			Rectangle rect = GetOuterDimensions().ToRectangle();
+			return point.X < rect.X + rect.Width;
 		}
 		public override void OnInitialize() {
 			if (!(Elements is null)) Elements.Clear();
