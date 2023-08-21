@@ -304,13 +304,14 @@ namespace RareInfoFilter {
 		}
 		static string SerializeNPC(int v) {
 			if (v < NPCID.Count) {
-				return $"Terraria:{NPCID.Search.GetName(v)}";
+				return NPCID.Search.TryGetName(v, out string name) ? $"Terraria:{name}" : null;
 			} else {
 				ModNPC npc = NPCLoader.GetNPC(v);
 				return $"{npc.Mod.Name}:{npc.Name}";
 			}
 		}
 		static int DeserializeNPC(string s) {
+			if (string.IsNullOrEmpty(s)) return -1;
 			string[] segs = s.Split(':');
 			if (segs[0] == "Terraria") {
 				return NPCID.Search.GetId(segs[1]);
@@ -320,14 +321,18 @@ namespace RareInfoFilter {
 			return -1;
 		}
 		static string SerializeTile(int v) {
-			if (v < TileID.Count) {
-				return $"Terraria:{TileID.Search.GetName(v)}";
-			} else {
-				ModTile tile = TileLoader.GetTile(v);
-				return $"{tile.Mod.Name}:{tile.Name}";
+			if (v >= TileID.Dirt) {
+				if (v < TileID.Count) {
+					return TileID.Search.TryGetName(v, out string name) ? $"Terraria:{name}" : null;
+				} else {
+					ModTile tile = TileLoader.GetTile(v);
+					return $"{tile.Mod.Name}:{tile.Name}";
+				}
 			}
+			return "";
 		}
 		static int DeserializeTile(string s) {
+			if (string.IsNullOrEmpty(s)) return -1;
 			string[] segs = s.Split(':');
 			if (segs[0] == "Terraria") {
 				return TileID.Search.GetId(segs[1]);
