@@ -113,7 +113,7 @@ namespace RareInfoFilter {
 				ModContent.GetInstance<RareInfoFilter>().Logger.Error("Couldn't find the npc thingy");
 			}
 		}
-		private static bool SceneMetrics_IsValidForOreFinder(Terraria.On_SceneMetrics.orig_IsValidForOreFinder orig, Tile t) {
+		private static bool SceneMetrics_IsValidForOreFinder(On_SceneMetrics.orig_IsValidForOreFinder orig, Tile t) {
 			if (orig(t)) {
 				SeeTile(t);
 				return !FilterTile(t);
@@ -305,6 +305,10 @@ namespace RareInfoFilter {
 			} else {
 				hiddenTileTypes = new HashSet<int>() { };
 			}
+			seenNPCTypes.Remove(-1);
+			hiddenNPCTypes.Remove(-1);
+			seenTileTypes.Remove(-1);
+			hiddenTileTypes.Remove(-1);
 		}
 		public override void SetControls() {
 			if (RareInfoFilter.OpenNPCMenuHotkey.JustPressed) IngameFancyUI.OpenUIState(new FilterMenuState(isNPC: true));
@@ -337,7 +341,7 @@ namespace RareInfoFilter {
 					return $"{tile.Mod.Name}:{tile.Name}";
 				}
 			}
-			return "";
+			return null;
 		}
 		static int DeserializeTile(string s) {
 			if (string.IsNullOrEmpty(s)) return -1;
