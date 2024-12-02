@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis.Differencing;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Mono.Cecil;
@@ -22,6 +23,7 @@ using Terraria.ModLoader.Config.UI;
 using Terraria.ModLoader.Core;
 using Terraria.ModLoader.IO;
 using Terraria.UI;
+using Tyfyter.Utils;
 
 namespace RareInfoFilter {
 	public class RareInfoFilter : Mod {
@@ -30,6 +32,7 @@ namespace RareInfoFilter {
 		internal static InfoFilterPlayer FilterPlayer => Main.LocalPlayer?.GetModPlayer<InfoFilterPlayer>();
 		public static AutoCastingAsset<Texture2D> SelectorEndTexture { get; private set; }
 		public static AutoCastingAsset<Texture2D> SelectorMidTexture { get; private set; }
+		internal static bool ISHEnabled { get; set; }
 		public override void Load() {
 			Terraria.IL_Main.DrawInfoAccs += Main_DrawInfoAccs;
 			Terraria.On_SceneMetrics.IsValidForOreFinder += SceneMetrics_IsValidForOreFinder;
@@ -66,14 +69,28 @@ namespace RareInfoFilter {
 		public static void SeeNPC(NPC npc) {
 			const int range = 1300;
 			if (npc.active && npc.rarity > 0 && (npc.Center - Main.LocalPlayer.Center).LengthSquared() < range * range) {
-				if (!FilterPlayer.seenNPCTypes.Contains(npc.type)) FilterPlayer.seenNPCTypes.Add(npc.type);
+				if (!FilterPlayer.seenNPCTypes.Contains(npc.type)) {
+					FilterPlayer.seenNPCTypes.Add(npc.type);
+					if (ISHEnabled) ISHSeeNewNPC(npc.type);
+				}
 			}
+		}
+		[JITWhenModsEnabled(nameof(ItemSourceHelper))]
+		static void ISHSeeNewNPC(int type) {
+			LifeformAnalyzerFilterBrowserWindow.SeeNewNPC(type);
 		}
 		public static bool FilterNPC(NPC npc) {
 			return FilterPlayer?.hiddenNPCTypes?.Contains(npc.type) ?? false;
 		}
 		public static void SeeTile(Tile tile) {
-			if (!FilterPlayer.seenTileTypes.Contains(tile.TileType)) FilterPlayer.seenTileTypes.Add(tile.TileType);
+			if (!FilterPlayer.seenTileTypes.Contains(tile.TileType)) {
+				FilterPlayer.seenTileTypes.Add(tile.TileType);
+				if (ISHEnabled) ISHSeeNewTile(tile.TileType);
+			}
+		}
+		[JITWhenModsEnabled(nameof(ItemSourceHelper))]
+		static void ISHSeeNewTile(int type) {
+			MetalDetectorFilterBrowserWindow.SeeNewTile(type);
 		}
 		public static bool FilterTile(Tile tile) {
 			return FilterPlayer?.hiddenTileTypes?.Contains(tile.TileType) ?? false;
@@ -271,52 +288,56 @@ namespace RareInfoFilter {
 		public static implicit operator T(AutoCastingAsset<T> asset) => asset.Value;
 	}
 	public class InfoFilterPlayer : ModPlayer {
-		public List<int> seenNPCTypes = new();
-		public HashSet<int> hiddenNPCTypes = new();
+		public List<int> seenNPCTypes = [];
+		public HashSet<int> hiddenNPCTypes = [];
 
-		public List<int> seenTileTypes = new();
-		public HashSet<int> hiddenTileTypes = new();
+		public List<int> seenTileTypes = [];
+		public HashSet<int> hiddenTileTypes = [];
 		public override void SaveData(TagCompound tag) {
-			tag.Add("seenNPCTypes", seenNPCTypes.Select(SerializeNPC).ToList());
-			tag.Add("hiddenNPCTypes", hiddenNPCTypes.Select(SerializeNPC).ToList());
+			tag.Add("seenNPCTypes", seenNPCTypes.Select(SerializeNPC).Where(IsValidSaveString).ToList());
+			tag.Add("hiddenNPCTypes", hiddenNPCTypes.Select(SerializeNPC).Where(IsValidSaveString).ToList());
 
-			tag.Add("seenTileTypes", seenTileTypes.Select(SerializeTile).ToList());
-			tag.Add("hiddenTileTypes", hiddenTileTypes.Select(SerializeTile).ToList());
+			tag.Add("seenTileTypes", seenTileTypes.Select(SerializeTile).Where(IsValidSaveString).ToList());
+			tag.Add("hiddenTileTypes", hiddenTileTypes.Select(SerializeTile).Where(IsValidSaveString).ToList());
 		}
 		public override void LoadData(TagCompound tag) {
 			if (tag.TryGet("seenNPCTypes", out List<string> _seenNPCTypes)) {
-				seenNPCTypes = _seenNPCTypes.Select(DeserializeNPC).ToList();
+				seenNPCTypes = _seenNPCTypes.Select(DeserializeNPC).Where(i => i != -1).Order().ToList();
 			} else {
-				seenNPCTypes = new List<int>() { };
+				seenNPCTypes = [];
 			}
 			if (tag.TryGet("hiddenNPCTypes", out List<string> _hiddenNPCTypes)) {
-				hiddenNPCTypes = _hiddenNPCTypes.Select(DeserializeNPC).ToHashSet();
+				hiddenNPCTypes = _hiddenNPCTypes.Select(DeserializeNPC).Where(i => i != -1).ToHashSet();
 			} else {
-				hiddenNPCTypes = new HashSet<int>() { };
+				hiddenNPCTypes = [];
 			}
 
 			if (tag.TryGet("seenTileTypes", out List<string> _seenTileTypes)) {
-				seenTileTypes = _seenTileTypes.Select(DeserializeTile).ToList();
+				seenTileTypes = _seenTileTypes.Select(DeserializeTile).Where(i => i != -1).Order().ToList();
 			} else {
-				seenTileTypes = new List<int>() { };
+				seenTileTypes = [];
 			}
 			if (tag.TryGet("hiddenTileTypes", out List<string> _hiddenTileTypes)) {
-				hiddenTileTypes =  _hiddenTileTypes.Select(DeserializeTile).ToHashSet();
+				hiddenTileTypes =  _hiddenTileTypes.Select(DeserializeTile).Where(i => i != -1).ToHashSet();
 			} else {
-				hiddenTileTypes = new HashSet<int>() { };
+				hiddenTileTypes = [];
 			}
-			seenNPCTypes.Remove(-1);
-			hiddenNPCTypes.Remove(-1);
-			seenTileTypes.Remove(-1);
-			hiddenTileTypes.Remove(-1);
+		}
+		public override void OnEnterWorld() {
+			if (RareInfoFilter.ISHEnabled) ISHSetSeenStuff();
+		}
+		[JITWhenModsEnabled(nameof(ItemSourceHelper))]
+		void ISHSetSeenStuff() {
+			ModContent.GetInstance<MetalDetectorFilterBrowserWindow>().SetSeenTiles(seenTileTypes);
+			ModContent.GetInstance<LifeformAnalyzerFilterBrowserWindow>().SetSeenNPCs(seenNPCTypes);
 		}
 		public override void SetControls() {
 			if (RareInfoFilter.OpenNPCMenuHotkey.JustPressed) IngameFancyUI.OpenUIState(new FilterMenuState(isNPC: true));
 			if (RareInfoFilter.OpenTileMenuHotkey.JustPressed) IngameFancyUI.OpenUIState(new FilterMenuState(isNPC: false));
 		}
 		static string SerializeNPC(int v) {
+			return NPCID.Search.TryGetName(v, out string name) ? name : null;
 			if (v < NPCID.Count) {
-				return NPCID.Search.TryGetName(v, out string name) ? $"Terraria:{name}" : null;
 			} else {
 				ModNPC npc = NPCLoader.GetNPC(v);
 				return $"{npc.Mod.Name}:{npc.Name}";
@@ -324,18 +345,18 @@ namespace RareInfoFilter {
 		}
 		static int DeserializeNPC(string s) {
 			if (string.IsNullOrEmpty(s)) return -1;
+			return NPCID.Search.TryGetId(s, out int id) ? id : -1;
 			string[] segs = s.Split(':');
 			if (segs[0] == "Terraria") {
-				return NPCID.Search.GetId(segs[1]);
 			} else if (ModContent.TryFind(segs[0], segs[1], out ModNPC npc)) {
 				return npc.Type;
 			}
 			return -1;
 		}
 		static string SerializeTile(int v) {
+			return TileID.Search.TryGetName(v, out string name) ? name : null;
 			if (v >= TileID.Dirt) {
 				if (v < TileID.Count) {
-					return TileID.Search.TryGetName(v, out string name) ? $"Terraria:{name}" : null;
 				} else {
 					ModTile tile = TileLoader.GetTile(v);
 					return $"{tile.Mod.Name}:{tile.Name}";
@@ -345,14 +366,15 @@ namespace RareInfoFilter {
 		}
 		static int DeserializeTile(string s) {
 			if (string.IsNullOrEmpty(s)) return -1;
+			return TileID.Search.TryGetId(s, out int id) ? id : -1;
 			string[] segs = s.Split(':');
 			if (segs[0] == "Terraria") {
-				return TileID.Search.GetId(segs[1]);
 			} else if (ModContent.TryFind(segs[0], segs[1], out ModTile tile)) {
 				return tile.Type;
 			}
 			return -1;
 		}
+		static bool IsValidSaveString(string s) => !string.IsNullOrWhiteSpace(s);
 	}
 	public class HashSetPropertyInfo<T> : PropertyInfo {
 		public override System.Reflection.PropertyAttributes Attributes { get; }

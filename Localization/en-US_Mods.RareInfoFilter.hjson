@@ -2,3 +2,34 @@ Keybinds: {
 	"Open NPC Filter Menu.DisplayName": Open NPC Filter Menu
 	"Open Tile Filter Menu.DisplayName": Open Tile Filter Menu
 }
+
+BrowserMode: {
+	MetalDetectorFilterBrowserWindow.DisplayName: Metal Detector Filtering
+	LifeformAnalyzerFilterBrowserWindow.DisplayName: Lifeform Analyzer Filtering
+}
+
+Configs: {
+	SourceHelperUIConfig: {
+		DisplayName: Source Helper UI Config
+
+		MetalDetectorWindowColor: {
+			Label: Metal Detector Window Color
+			Tooltip: ""
+		}
+
+		DisabledSlotColor: {
+			Label: Disabled Slot Color
+			Tooltip: ""
+		}
+
+		DisabledHoveredSlotColor: {
+			Label: Disabled Hovered Slot Color
+			Tooltip: ""
+		}
+
+		LifeformAnalyzerWindowColor: {
+			Label: Lifeform Analyzer Window Color
+			Tooltip: ""
+		}
+	}
+}
